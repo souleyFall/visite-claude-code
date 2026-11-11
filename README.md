@@ -1,5 +1,7 @@
 # /visite : une visite guidée de ton code
 
+[![Tests](https://github.com/souleyFall/visite-claude-code/actions/workflows/tests.yml/badge.svg)](https://github.com/souleyFall/visite-claude-code/actions/workflows/tests.yml)
+
 **/visite** is a [Claude Code](https://code.claude.com) skill that turns any feature of your codebase into a guided, step-by-step tour: verified code excerpts in execution order, beginner-friendly explanations, and a quiz to check you understood.
 *The documentation below is in French.*
 
