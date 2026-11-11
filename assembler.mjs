@@ -8,7 +8,8 @@
 // - Le template est lu à côté de ce script : template.html.
 // - Résultat : visite.html, écrit dans le dossier de la visite.
 //
-// Codes de sortie : 0 = page produite, 1 = visite refusée (erreurs listées), 2 = problème d'utilisation.
+// Codes de sortie : 0 = page produite ; 1 = visite refusée (JSON invalide ou erreurs listées) : corriger visite.json ;
+// 2 = problème d'utilisation (argument manquant, visite.json absent, template introuvable).
 // Aucune dépendance : seulement les modules intégrés à Node.
 
 import fs from "node:fs";
@@ -37,11 +38,25 @@ const dossierVisite = path.resolve(dossierVisiteArg);
 const racine = path.resolve(racineArg || process.cwd());
 const cheminJson = path.join(dossierVisite, "visite.json");
 
-let visite;
+// Fichier absent ou illisible : problème d'utilisation (code 2).
+let texteJson;
 try {
-  visite = JSON.parse(lireTexte(cheminJson));
+  texteJson = lireTexte(cheminJson);
 } catch (e) {
   arreter(`Impossible de lire ${cheminJson} : ${e.message}`, 2);
+}
+// Contenu vide, mal formé ou qui n'est pas un objet : c'est visite.json qu'il faut corriger (code 1).
+if (texteJson.trim() === "") {
+  arreter("Visite refusée : visite.json est vide.", 1);
+}
+let visite;
+try {
+  visite = JSON.parse(texteJson);
+} catch (e) {
+  arreter(`Visite refusée : visite.json n'est pas un JSON valide (${e.message}).`, 1);
+}
+if (visite === null || typeof visite !== "object" || Array.isArray(visite)) {
+  arreter("Visite refusée : visite.json doit contenir un objet { \"titre\": …, \"etapes\": […], … }.", 1);
 }
 
 // ---------- 2. Vérifier ----------
@@ -54,16 +69,28 @@ function lireTexte(chemin) {
   return fs.readFileSync(chemin, "utf8").replace(/^﻿/, "");
 }
 
+// Vrai si "cible" est à l'intérieur du dossier "dossier" (et n'est pas le dossier lui-même).
+// On teste le segment ".." entier : un fichier nommé "..config.js" reste dans le projet.
+function estDans(dossier, cible) {
+  const relatif = path.relative(dossier, cible);
+  if (relatif === "" || path.isAbsolute(relatif)) return false;
+  return relatif !== ".." && !relatif.startsWith(".." + path.sep);
+}
+
 function lignesDe(fichierRelatif) {
   if (fichiersLus.has(fichierRelatif)) return fichiersLus.get(fichierRelatif);
   const absolu = path.resolve(racine, fichierRelatif);
-  // Sécurité : un fichier cité doit rester dans le projet (pas de "../../ailleurs").
-  const relatif = path.relative(racine, absolu);
-  if (relatif.startsWith("..") || path.isAbsolute(relatif)) {
+  // Sécurité, 1er contrôle sur le texte du chemin : pas de "../../ailleurs" ni de chemin absolu hors du projet.
+  if (!estDans(racine, absolu)) {
     throw new Error(`le fichier « ${fichierRelatif} » sort du projet`);
   }
   if (!fs.existsSync(absolu) || !fs.statSync(absolu).isFile()) {
     throw new Error(`le fichier « ${fichierRelatif} » n'existe pas`);
+  }
+  // 2e contrôle sur l'emplacement réel : un lien (symbolique ou jonction Windows) placé dans le projet
+  // peut pointer ailleurs. realpathSync suit les liens et donne le vrai chemin sur le disque.
+  if (!estDans(fs.realpathSync(racine), fs.realpathSync(absolu))) {
+    throw new Error(`le fichier « ${fichierRelatif} » sort du projet par un lien`);
   }
   const lignes = lireTexte(absolu).split(/\r?\n/);
   if (lignes.length > 1 && lignes[lignes.length - 1] === "") lignes.pop(); // saut de ligne final
@@ -78,6 +105,7 @@ if (!estTexte(visite.titre)) erreurs.push("Visite : « titre » manquant ou vide
 if (!estTexte(visite.resume)) erreurs.push("Visite : « resume » manquant ou vide.");
 if (!estTexte(visite.questionOuverte)) erreurs.push("Visite : « questionOuverte » manquante ou vide.");
 
+if (visite.etapes !== undefined && !Array.isArray(visite.etapes)) erreurs.push("Visite : « etapes » doit être une liste.");
 const etapes = Array.isArray(visite.etapes) ? visite.etapes : [];
 if (etapes.length === 0) erreurs.push("Visite : il faut au moins une étape dans « etapes ».");
 
@@ -139,6 +167,7 @@ etapes.forEach((etape, i) => {
   });
 });
 
+if (visite.questions !== undefined && !Array.isArray(visite.questions)) erreurs.push("Visite : « questions » doit être une liste.");
 const questions = Array.isArray(visite.questions) ? visite.questions : [];
 if (questions.length < NB_QUESTIONS_MIN || questions.length > NB_QUESTIONS_MAX) {
   erreurs.push(`Visite : il faut entre ${NB_QUESTIONS_MIN} et ${NB_QUESTIONS_MAX} questions, il y en a ${questions.length}.`);
