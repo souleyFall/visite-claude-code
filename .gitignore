@@ -1,0 +1,13 @@
+# Pages et données générées en essayant la skill dans ce dossier
+visite.json
+visite.html
+.claude/
+
+# Dépendances et fichiers temporaires (le projet n'en utilise pas, par précaution)
+node_modules/
+*.log
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini

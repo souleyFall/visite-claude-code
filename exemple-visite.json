@@ -1,0 +1,168 @@
+{
+  "titre": "Commande d'une pizza",
+  "resume": "Quand tu valides ta commande, le navigateur l'envoie à l'API, qui la vérifie, l'enregistre en statut « recue » et prévient la cuisine. Dix minutes plus tard, la cuisine annonce que la pizza est prête, l'API passe la commande en « prete » et la page de suivi l'affiche.",
+  "etapes": [
+    {
+      "id": "client-envoi",
+      "titre": "Le navigateur envoie la commande",
+      "fichier": "client/commande.js",
+      "lignes": { "debut": 4, "fin": 9 },
+      "repere": "export async function envoyerCommande",
+      "explication": "Quand tu cliques sur « Commander », la fonction envoyerCommande s'exécute. Elle envoie à l'API une requête POST (une requête qui transmet des données) avec la pizza choisie et l'adresse, transformées en texte JSON.",
+      "exemple": [
+        { "nom": "pizza", "valeur": "\"reine\"" },
+        { "nom": "adresse", "valeur": "\"12 rue des Lilas\"" },
+        { "nom": "URL appelée", "valeur": "\"http://localhost:3000/commandes\"" }
+      ],
+      "transition": "La requête quitte le navigateur et arrive dans le service api, sur la route POST /commandes."
+    },
+    {
+      "id": "api-verification",
+      "titre": "L'API vérifie que la commande est complète",
+      "fichier": "api/serveur.js",
+      "lignes": { "debut": 10, "fin": 14 },
+      "repere": "app.post(\"/commandes\"",
+      "explication": "Une route, c'est une fonction que le serveur exécute quand une requête arrive sur une adresse précise. Celle-ci récupère la pizza et l'adresse envoyées par le navigateur, et refuse la commande avec le code 400 (« requête incorrecte ») si l'une des deux manque.",
+      "exemple": [
+        { "nom": "req.body", "valeur": "{ pizza: \"reine\", adresse: \"12 rue des Lilas\" }" },
+        { "nom": "vérification", "valeur": "les deux champs sont remplis, on continue" }
+      ]
+    },
+    {
+      "id": "api-enregistrement",
+      "titre": "L'API enregistre la commande",
+      "fichier": "api/serveur.js",
+      "lignes": { "debut": 15, "fin": 16 },
+      "repere": "statut: \"recue\"",
+      "explication": "L'API fabrique un objet commande avec un identifiant court tiré au hasard et le statut « recue ». Elle le range dans l'objet commandes, qui sert ici de petite base de données en mémoire.",
+      "exemple": [
+        { "nom": "commande", "valeur": "{ id: \"7f3a9c21\", pizza: \"reine\", adresse: \"12 rue des Lilas\", statut: \"recue\" }" }
+      ]
+    },
+    {
+      "id": "api-cuisine",
+      "titre": "L'API transmet la commande à la cuisine",
+      "fichier": "api/serveur.js",
+      "lignes": { "debut": 18, "fin": 22 },
+      "repere": "http://cuisine:4000/a-preparer",
+      "explication": "L'API envoie la commande au service cuisine avec une nouvelle requête POST. Le mot await la fait attendre la réponse de la cuisine avant de répondre au navigateur.",
+      "exemple": [
+        { "nom": "URL appelée", "valeur": "\"http://cuisine:4000/a-preparer\"" },
+        { "nom": "données envoyées", "valeur": "{ id: \"7f3a9c21\", pizza: \"reine\", adresse: \"12 rue des Lilas\", statut: \"recue\" }" }
+      ],
+      "transition": "La commande change de service : elle arrive dans la cuisine, sur la route POST /a-preparer."
+    },
+    {
+      "id": "cuisine-four",
+      "titre": "La cuisine met la pizza au four",
+      "fichier": "cuisine/cuisine.js",
+      "lignes": { "debut": 9, "fin": 16 },
+      "repere": "TEMPS_DE_CUISSON[commande.pizza]",
+      "explication": "La cuisine cherche le temps de cuisson de la pizza dans un tableau, avec 10 minutes par défaut si la pizza n'y figure pas. Elle programme un minuteur (setTimeout) qui préviendra l'API plus tard, puis répond tout de suite que la commande est acceptée.",
+      "exemple": [
+        { "nom": "minutes", "valeur": "10" },
+        { "nom": "réponse", "valeur": "{ acceptee: true }" }
+      ],
+      "transition": "L'API, qui attendait cette réponse, renvoie la commande au navigateur avec le code 201 (« créée »)."
+    },
+    {
+      "id": "client-affichage",
+      "titre": "Le navigateur affiche le suivi",
+      "fichier": "client/commande.js",
+      "lignes": { "debut": 10, "fin": 16 },
+      "repere": "afficherSuivi(commande);",
+      "explication": "Le navigateur lit la commande renvoyée par l'API et appelle afficherSuivi. Cette fonction écrit le numéro et le statut de la commande dans la zone de suivi de la page.",
+      "exemple": [
+        { "nom": "texte affiché", "valeur": "\"Commande 7f3a9c21 : recue\"" }
+      ],
+      "transition": "Dix minutes passent. Dans la cuisine, le minuteur se déclenche et appelle la fonction prevenirApi."
+    },
+    {
+      "id": "cuisine-previent",
+      "titre": "La cuisine annonce que la pizza est prête",
+      "fichier": "cuisine/cuisine.js",
+      "lignes": { "debut": 18, "fin": 23 },
+      "repere": "type: \"PizzaPrete\"",
+      "explication": "La cuisine envoie à l'API un événement, c'est-à-dire un message qui annonce que quelque chose s'est passé. Il contient son type, « PizzaPrete », et l'identifiant de la commande.",
+      "exemple": [
+        { "nom": "événement envoyé", "valeur": "{ type: \"PizzaPrete\", id: \"7f3a9c21\" }" }
+      ],
+      "transition": "Le message repart de la cuisine vers l'API, sur la route POST /evenements."
+    },
+    {
+      "id": "api-evenement",
+      "titre": "L'API passe la commande en « prete »",
+      "fichier": "api/serveur.js",
+      "lignes": { "debut": 26, "fin": 32 },
+      "repere": "if (type === \"PizzaPrete\")",
+      "explication": "L'API regarde le type de l'événement reçu. Si c'est « PizzaPrete », elle retrouve la commande grâce à son identifiant et change son statut en « prete ».",
+      "exemple": [
+        { "nom": "statut avant", "valeur": "\"recue\"" },
+        { "nom": "statut après", "valeur": "\"prete\"" }
+      ],
+      "transition": "Côté navigateur, la page de suivi redemande l'état de la commande."
+    },
+    {
+      "id": "client-actualise",
+      "titre": "Le navigateur redemande l'état",
+      "fichier": "client/commande.js",
+      "lignes": { "debut": 19, "fin": 22 },
+      "repere": "export async function actualiserSuivi",
+      "explication": "La fonction actualiserSuivi envoie une requête GET (une requête qui demande des données sans rien modifier) pour récupérer la commande, puis passe la réponse à afficherSuivi.",
+      "exemple": [
+        { "nom": "URL appelée", "valeur": "\"http://localhost:3000/commandes/7f3a9c21\"" }
+      ],
+      "transition": "La requête arrive dans l'API, sur la route GET /commandes/:id."
+    },
+    {
+      "id": "api-lecture",
+      "titre": "L'API renvoie la commande à jour",
+      "fichier": "api/serveur.js",
+      "lignes": { "debut": 34, "fin": 38 },
+      "repere": "app.get(\"/commandes/:id\"",
+      "explication": "L'API cherche la commande avec l'identifiant présent dans l'URL et la renvoie, ou répond 404 (« introuvable ») si elle n'existe pas. Le navigateur affiche alors « Commande 7f3a9c21 : prete ».",
+      "exemple": [
+        { "nom": "req.params.id", "valeur": "\"7f3a9c21\"" },
+        { "nom": "réponse", "valeur": "{ id: \"7f3a9c21\", pizza: \"reine\", adresse: \"12 rue des Lilas\", statut: \"prete\" }" }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "question": "Quel statut a la commande juste après son enregistrement par l'API ?",
+      "choix": ["prete", "recue", "acceptee", "au four"],
+      "bonneReponse": 1,
+      "explication": "L'API crée la commande avec le statut « recue ». Elle ne passe en « prete » que lorsque la cuisine l'annonce.",
+      "etape": "api-enregistrement"
+    },
+    {
+      "question": "Que se passe-t-il si le navigateur envoie une commande sans adresse ?",
+      "choix": ["La cuisine prépare quand même la pizza", "L'API répond 400 et la cuisine n'est jamais prévenue", "L'API enregistre la commande sans adresse", "Le navigateur affiche « prete »"],
+      "bonneReponse": 1,
+      "explication": "La vérification a lieu avant tout le reste : le return arrête la route avec le code 400, donc rien n'est enregistré ni envoyé à la cuisine.",
+      "etape": "api-verification"
+    },
+    {
+      "question": "Combien de temps cuit une pizza « calzone », absente du tableau des temps de cuisson ?",
+      "choix": ["8 minutes", "12 minutes", "10 minutes", "Elle est refusée"],
+      "bonneReponse": 2,
+      "explication": "L'opérateur ?? donne la valeur de droite quand celle de gauche est absente : la calzone cuit donc 10 minutes par défaut.",
+      "etape": "cuisine-four"
+    },
+    {
+      "question": "Comment l'API apprend-elle que la pizza est prête ?",
+      "choix": ["Elle interroge la cuisine toutes les minutes", "Le navigateur le lui dit", "La cuisine lui envoie un événement « PizzaPrete »", "Elle calcule l'heure de fin elle-même"],
+      "bonneReponse": 2,
+      "explication": "Quand le minuteur se déclenche, la cuisine envoie un événement « PizzaPrete » sur la route /evenements de l'API.",
+      "etape": "cuisine-previent"
+    },
+    {
+      "question": "Qui change le statut de la commande en « prete » ?",
+      "choix": ["L'API, en recevant l'événement", "La cuisine", "Le navigateur", "Personne, il est calculé à l'affichage"],
+      "bonneReponse": 0,
+      "explication": "La cuisine ne fait qu'annoncer l'événement : c'est l'API, qui garde les commandes, qui modifie le statut.",
+      "etape": "api-evenement"
+    }
+  ],
+  "questionOuverte": "Explique avec tes mots, sans regarder le code, tout ce qui se passe entre le clic sur « Commander » et l'affichage de « prete » dans la page de suivi. Cite les services dans l'ordre."
+}

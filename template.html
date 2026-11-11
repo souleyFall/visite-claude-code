@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visite du code</title>
+<!--
+  Template fixe de la skill /visite. Ne pas modifier par visite :
+  assembler.mjs remplace le marqueur placé dans la balise application/json
+  par les données vérifiées. Aucune dépendance, aucune requête réseau.
+-->
+<script>
+  // Thème choisi lors d'une visite précédente (sombre par défaut). Lu avant l'affichage pour éviter un flash.
+  try { var t = localStorage.getItem("visite-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+<style>
+  :root, [data-theme="dark"] {
+    --fond: #111317; --surface: #181b21; --code-fond: #0d0f13;
+    --bord: #262a33; --bord-fort: #2a2f39;
+    --texte: #e7e9ee; --doux: #9aa1ad; --texte-2: #d6dae2;
+    --accent: #8ab4ff; --accent-fort: #b3ceff; --sur-accent: #0b0d10;
+    --puce-fond: #1f2a45; --puce-texte: #b3ceff;
+    --avert: #e2c07a;
+    --vise-fond: #2a2412; --vise-bord: #f0b429; --vise-num: #c9a54a; --num: #5d6370;
+    --ensuite-fond: #1a2233; --ensuite-bord: #2b3a5c;
+    --juste: #6fd38a; --juste-fond: #16301e; --faux: #ff9b91; --faux-fond: #3a1d1b;
+    --tk-mot: #c792ea; --tk-chaine: #a8d8a0; --tk-nombre: #f4a261; --tk-fonction: #82aaff; --tk-commentaire: #7d8590;
+    color-scheme: dark;
+  }
+  [data-theme="light"] {
+    --fond: #f7f6f3; --surface: #ffffff; --code-fond: #f3f2ee;
+    --bord: #e3e1dc; --bord-fort: #dcdad5;
+    --texte: #1f2328; --doux: #5f6670; --texte-2: #33373d;
+    --accent: #2f5bd3; --accent-fort: #2447a8; --sur-accent: #ffffff;
+    --puce-fond: #e3eaff; --puce-texte: #2447a8;
+    --avert: #7a4f00;
+    --vise-fond: #fff1b8; --vise-bord: #d9a400; --vise-num: #7a5d00; --num: #8a8880;
+    --ensuite-fond: #eef3ff; --ensuite-bord: #c9d6f5;
+    --juste: #1a7f37; --juste-fond: #e6f4ea; --faux: #c62828; --faux-fond: #fdecea;
+    --tk-mot: #7c3aed; --tk-chaine: #1a7f37; --tk-nombre: #b45309; --tk-fonction: #2447a8; --tk-commentaire: #6b6f77;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--fond); }
+  body {
+    margin: 0; background: var(--fond); color: var(--texte);
+    font: 16px/1.55 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  .mono { font-family: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace; font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  .page { max-width: 860px; margin: 0 auto; padding: 20px 28px 100px; }
+
+  /* En-tête */
+  header { display: flex; flex-direction: column; gap: 16px; }
+  .haut { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .surtitre, h3 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--doux); margin: 0; font-weight: 600; }
+  h1 { margin: 2px 0 0; font-size: 22px; font-weight: 600; line-height: 1.25; }
+  .icone { width: 44px; height: 44px; flex: none; padding: 0; display: flex; align-items: center; justify-content: center; }
+  .progression { display: flex; flex-direction: column; gap: 8px; }
+  .progression .libelles { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--doux); }
+  .progression strong { color: var(--texte); }
+  .segments { display: grid; gap: 4px; }
+  .segments span { height: 6px; border-radius: 3px; background: var(--bord-fort); }
+  .segments span.fait { background: var(--accent); }
+  .avertissement { margin: 0; display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--avert); }
+  .avertissement svg { flex: none; }
+
+  /* Cartes */
+  main { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; outline: none; }
+  .carte { padding: 22px; background: var(--surface); border: 1px solid var(--bord); border-radius: 14px; display: flex; flex-direction: column; gap: 18px; }
+  .carte.ensuite-style { background: var(--ensuite-fond); border-color: var(--ensuite-bord); gap: 12px; }
+  h2 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.3; }
+  .tete { display: flex; flex-direction: column; gap: 10px; }
+  .ligne-fichier { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .puce { font-size: 12px; padding: 2px 10px; border-radius: 999px; background: var(--puce-fond); color: var(--puce-texte); white-space: nowrap; }
+  .chemin { font-size: 13px; color: var(--doux); word-break: break-all; }
+  p { margin: 0; }
+  .explication { font-size: 16px; line-height: 1.6; }
+  .doux { color: var(--doux); font-size: 14px; }
+
+  /* Code */
+  .code { background: var(--code-fond); border: 1px solid var(--bord); border-radius: 10px; padding: 8px 0; font-size: 13.5px; line-height: 1.65; overflow-x: auto; }
+  .ligne { display: flex; min-width: max-content; border-left: 3px solid transparent; }
+  .ligne .num { width: 44px; flex: none; text-align: right; padding-right: 14px; color: var(--num); user-select: none; }
+  .ligne .src { white-space: pre; padding-right: 16px; }
+  .ligne.contexte .src { opacity: .6; }
+  .ligne.vise { background: var(--vise-fond); border-left-color: var(--vise-bord); }
+  .ligne.vise .num { color: var(--vise-num); }
+  .tk-mot { color: var(--tk-mot); }
+  .tk-chaine { color: var(--tk-chaine); }
+  .tk-nombre { color: var(--tk-nombre); }
+  .tk-fonction { color: var(--tk-fonction); }
+  .tk-commentaire { color: var(--tk-commentaire); font-style: italic; }
+
+  /* Exemple de valeurs */
+  .exemple { display: flex; flex-direction: column; gap: 8px; }
+  .valeurs { display: grid; grid-template-columns: minmax(110px, 34%) minmax(0, 1fr); border-top: 1px solid var(--bord); font-size: 13px; }
+  .valeurs span { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--bord); line-height: 1.5; word-break: break-word; }
+  .valeurs .nom { color: var(--doux); }
+
+  /* Ensuite */
+  .ensuite { padding: 14px 16px; border-radius: 10px; background: var(--ensuite-fond); border: 1px solid var(--ensuite-bord); display: flex; flex-direction: column; gap: 8px; }
+  .ensuite .titre { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 600; color: var(--accent-fort); }
+  .ensuite p { font-size: 15px; line-height: 1.55; color: var(--texte-2); }
+
+  /* Listes d'étapes cliquables (intro, à revoir) */
+  .rangees { display: flex; flex-direction: column; gap: 8px; }
+  .rangee { min-height: 48px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--bord-fort); background: var(--fond); color: var(--texte); text-align: left; display: flex; align-items: center; gap: 12px; font-size: 15px; width: 100%; }
+  .rangee:hover { border-color: var(--accent); }
+  .rangee .n { font-size: 13px; color: var(--doux); width: 58px; flex: none; }
+  .rangee .t { flex-grow: 1; }
+  .rangee .fl { color: var(--accent); }
+
+  /* Boutons */
+  button { font: inherit; font-size: 15px; height: 44px; padding: 0 18px; border-radius: 10px; cursor: pointer; border: 1px solid var(--bord-fort); background: var(--surface); color: var(--texte); }
+  button.principal { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.lien { height: auto; border: none; background: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: inherit; }
+  button.rangee { height: auto; }
+  nav.bas { position: fixed; left: 0; right: 0; bottom: 0; background: var(--fond); border-top: 1px solid var(--bord); }
+  nav.bas .interieur { max-width: 860px; margin: 0 auto; padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  nav.bas .groupe { display: flex; gap: 10px; }
+  .astuce { font-size: 12px; color: var(--doux); }
+
+  /* Questionnaire */
+  .score { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .score .valeur { font-size: 44px; font-weight: 700; line-height: 1; }
+  .score .sur { color: var(--doux); font-weight: 500; }
+  .score p { font-size: 15px; color: var(--texte-2); }
+  .ouverte .consigne { font-size: 18px; line-height: 1.5; }
+  .ouverte .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .ouverte h3 { color: var(--accent-fort); }
+  fieldset { margin: 0; padding: 16px; border: 1px solid var(--bord); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  legend { padding: 0 6px; font-weight: 600; font-size: 15px; }
+  .choix { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+  .choix input { flex: none; margin: 0; width: 16px; height: 16px; accent-color: var(--accent); }
+  .choix .etat { margin-left: auto; font-size: 13px; padding-left: 12px; white-space: nowrap; }
+  .choix.juste { background: var(--juste-fond); }
+  .choix.juste .etat { color: var(--juste); }
+  .choix.faux { background: var(--faux-fond); }
+  .choix.faux .etat { color: var(--faux); }
+  .choix.attenue { color: var(--doux); }
+  .verdict { margin-top: 4px; font-size: 14px; color: var(--texte-2); }
+
+  /* Animations (toutes coupées si le système demande moins d'animations, voir plus bas) */
+  /* 1. Changement d'écran : glisse dans le sens de la navigation */
+  main.glisse-avant > * { animation: glisse-avant 220ms ease-out both; }
+  main.glisse-arriere > * { animation: glisse-arriere 220ms ease-out both; }
+  @keyframes glisse-avant { from { opacity: 0; transform: translateX(28px); } }
+  @keyframes glisse-arriere { from { opacity: 0; transform: translateX(-28px); } }
+  /* 2. Lignes visées : la bande apparaît de haut en bas ; délai calculé en JS pour finir en 300 ms */
+  .ligne.vise { animation: vise-entre 120ms ease-out both; }
+  @keyframes vise-entre { from { background-color: transparent; border-left-color: transparent; } }
+  /* 3. Segment de progression qu'on vient d'atteindre */
+  .segments span.arrive { transform-origin: left center; animation: segment-remplit 300ms ease-out both; }
+  @keyframes segment-remplit { from { transform: scaleX(0); } }
+  /* 4. Ensuite : la flèche passe d'un service à l'autre */
+  .ensuite .titre svg { animation: fleche-passe 260ms ease-out 140ms both; }
+  .ensuite .titre .puce + svg + .puce { animation: apparait 200ms ease-out 260ms both; }
+  @keyframes fleche-passe { from { opacity: 0; transform: translateX(-10px); } }
+  @keyframes apparait { from { opacity: 0; } }
+  /* 5. Questionnaire : petite pulsation du choix coché */
+  .choix.pulse { animation: choix-pulse 280ms ease-out; }
+  .choix.pulse input { animation: rond-pulse 280ms ease-out; }
+  @keyframes choix-pulse { 40% { background-color: var(--puce-fond); } }
+  @keyframes rond-pulse { 40% { transform: scale(1.3); } }
+  /* 6. Copie : une coche remplace brièvement le texte du bouton */
+  button .coche { display: inline-flex; align-items: center; gap: 6px; }
+  button .coche svg { animation: coche-pop 220ms ease-out both; }
+  @keyframes coche-pop { from { opacity: 0; transform: scale(.5); } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  main:focus-visible { outline: none; }
+
+  @media (max-width: 560px) {
+    .page { padding: 16px 16px 96px; }
+    nav.bas .interieur { padding: 12px 16px; }
+    .astuce { display: none; }
+    .carte { padding: 16px; }
+    .rangee .n { width: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="haut">
+      <div>
+        <p class="surtitre">Visite du code</p>
+        <h1 id="titre"></h1>
+      </div>
+      <button class="icone" id="theme" type="button"></button>
+    </div>
+    <div class="progression">
+      <div class="libelles"><span id="etiquette"></span><span id="suite"></span></div>
+      <div class="segments" id="segments"></div>
+    </div>
+    <p class="avertissement">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.01"></path></svg>
+      Valeurs d'exemple déduites de la lecture du code, pas d'une exécution réelle.
+    </p>
+  </header>
+  <main id="contenu" tabindex="-1"></main>
+</div>
+<nav class="bas"><div class="interieur" id="boutons"></div></nav>
+
+<script id="donnees" type="application/json">__DONNEES_VISITE__</script>
+<script>
+(function () {
+  "use strict";
+  var V = JSON.parse(document.getElementById("donnees").textContent);
+  var N = V.etapes.length;
+  var INTRO = -1, QUIZ = N;
+  var etat = { ecran: INTRO, reponses: {}, corrige: false, depuisResultats: false };
+
+  // ---------- Outils ----------
+
+  // Crée un élément. Le texte passe toujours par textContent : jamais d'innerHTML avec les données.
+  function el(tag, attrs, enfants) {
+    var n = document.createElement(tag);
+    if (attrs) for (var k in attrs) {
+      if (k === "texte") n.textContent = attrs[k];
+      else if (k === "classe") n.className = attrs[k];
+      else if (k === "clic") n.addEventListener("click", attrs[k]);
+      else n.setAttribute(k, attrs[k]);
+    }
+    (enfants || []).forEach(function (e) {
+      if (e == null) return;
+      n.appendChild(typeof e === "string" ? document.createTextNode(e) : e);
+    });
+    return n;
+  }
+  function svg(chemin, taille) {
+    var s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    s.setAttribute("width", taille || 20); s.setAttribute("height", taille || 20);
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("fill", "none");
+    s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.8");
+    s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round");
+    s.setAttribute("aria-hidden", "true");
+    s.innerHTML = chemin; // chemins SVG fixes écrits ci-dessous, jamais des données
+    return s;
+  }
+  var ICONE_SOLEIL = '<circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>';
+  var ICONE_LUNE = '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path>';
+  var ICONE_FLECHE = '<path d="M5 12h14M13 6l6 6-6 6"></path>';
+  var ICONE_COCHE = '<path d="M5 12.5l4.5 4.5L19 7.5"></path>';
+  var DUREE_BANDE = 300, DUREE_LIGNE = 120; // ms : la bande entière est en place en 300 ms, quelle que soit la plage
+
+  // Relance une animation CSS sur un élément (retirer la classe, forcer le recalcul, la remettre).
+  function rejouer(n, classe) {
+    n.classList.remove(classe);
+    void n.offsetWidth;
+    n.classList.add(classe);
+  }
+
+  function etapeParId(id) {
+    for (var i = 0; i < N; i++) if (V.etapes[i].id === id) return i;
+    return -1;
+  }
+  // Le service = premier dossier du chemin ("api/serveur.js" -> "api"). Aucun dossier : pas de puce.
+  function service(fichier) {
+    var morceaux = fichier.split("/");
+    return morceaux.length > 1 ? morceaux[0] : "";
+  }
+  function puce(texte) { return texte ? el("span", { classe: "puce mono", texte: texte }) : null; }
+
+  // ---------- Coloration syntaxique (maison, ligne par ligne) ----------
+  // Limites connues : pensée pour JavaScript ; un commentaire /* */ ou une chaîne `...`
+  // sur plusieurs lignes n'est coloré que sur sa première ligne.
+  var MOTS_JS = /^(await|async|const|let|var|function|return|if|else|for|of|in|while|new|class|extends|import|from|export|default|try|catch|finally|throw|true|false|null|undefined|this|typeof|require|module)$/;
+  var RE_JS = /(\/\/.*$|\/\*.*?(?:\*\/|$))|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`?)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_$][\w$]*)(\s*\()?/g;
+  var RE_DIESE = /(#.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(\b\d+(?:\.\d+)?\b)/g; // YAML, Python, shell, Dockerfile
+  function langage(fichier) {
+    var nom = fichier.toLowerCase();
+    if (/\.(m?[jt]sx?|cjs|json)$/.test(nom)) return "js";
+    if (/\.(ya?ml|py|sh|toml|conf)$/.test(nom) || /dockerfile$/.test(nom) || /\.env/.test(nom)) return "diese";
+    return "";
+  }
+  function colorier(ligne, lang) {
+    var noeud = el("span", { classe: "src" });
+    if (!lang || ligne === "") { noeud.textContent = ligne || " "; return noeud; }
+    var re = lang === "js" ? RE_JS : RE_DIESE;
+    var dernier = 0, m;
+    re.lastIndex = 0;
+    while ((m = re.exec(ligne))) {
+      if (m[0] === "") { re.lastIndex++; continue; }
+      if (m.index > dernier) noeud.appendChild(document.createTextNode(ligne.slice(dernier, m.index)));
+      var genre = m[1] ? "commentaire" : m[2] ? "chaine" : m[3] ? "nombre"
+        : (lang === "js" && MOTS_JS.test(m[4])) ? "mot" : m[5] ? "fonction" : "";
+      var texte = m[4] || m[0];
+      noeud.appendChild(genre ? el("span", { classe: "tk-" + genre, texte: texte }) : document.createTextNode(texte));
+      if (m[5]) noeud.appendChild(document.createTextNode(m[5]));
+      dernier = re.lastIndex;
+    }
+    if (dernier < ligne.length) noeud.appendChild(document.createTextNode(ligne.slice(dernier)));
+    return noeud;
+  }
+
+  // ---------- Thème ----------
+
+  function themeActuel() { return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark"; }
+  function majBoutonTheme() {
+    var b = document.getElementById("theme");
+    var sombre = themeActuel() === "dark";
+    b.textContent = "";
+    b.appendChild(svg(sombre ? ICONE_SOLEIL : ICONE_LUNE));
+    b.setAttribute("aria-label", sombre ? "Passer en mode clair" : "Passer en mode sombre");
+    b.title = b.getAttribute("aria-label");
+  }
+  document.getElementById("theme").addEventListener("click", function () {
+    var nouveau = themeActuel() === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", nouveau);
+    try { localStorage.setItem("visite-theme", nouveau); } catch (e) {}
+    majBoutonTheme();
+  });
+
+  // ---------- Navigation ----------
+
+  document.title = V.titre + " · visite";
+  document.getElementById("titre").textContent = V.titre;
+  document.getElementById("segments").style.gridTemplateColumns = "repeat(" + N + ", minmax(0, 1fr))";
+
+  function aller(ecran) {
+    var avant = etat.ecran;
+    etat.ecran = Math.max(INTRO, Math.min(QUIZ, ecran));
+    afficher(etat.ecran - avant); // le signe donne le sens de la navigation (0 : même écran, pas de glissement)
+    window.scrollTo(0, 0);
+    document.getElementById("contenu").focus({ preventScroll: true });
+  }
+  function revoir(i) { etat.depuisResultats = true; aller(i); }
+
+  function afficher(sens) {
+    var e = etat.ecran;
+    var contenu = document.getElementById("contenu");
+    contenu.textContent = "";
+    contenu.classList.remove("glisse-avant", "glisse-arriere");
+    if (sens) rejouer(contenu, sens > 0 ? "glisse-avant" : "glisse-arriere");
+
+    // Progression
+    var etiquette = document.getElementById("etiquette");
+    etiquette.textContent = "";
+    if (e === INTRO) etiquette.textContent = "Introduction";
+    else if (e === QUIZ) etiquette.appendChild(el("strong", { texte: "Questionnaire" }, [])).parentNode.appendChild(document.createTextNode(etat.corrige ? " · corrigé" : ""));
+    else { etiquette.appendChild(document.createTextNode("Étape ")); etiquette.appendChild(el("strong", { texte: String(e + 1) })); etiquette.appendChild(document.createTextNode(" sur " + N)); }
+    document.getElementById("suite").textContent = e === QUIZ ? N + " étapes parcourues" : N + " étapes, puis un questionnaire";
+    var seg = document.getElementById("segments");
+    seg.textContent = "";
+    for (var i = 0; i < N; i++) {
+      var classeSeg = (e === QUIZ || i <= e) ? "fait" : "";
+      if (sens > 0 && i === e) classeSeg += " arrive"; // seulement le segment qu'on vient d'atteindre en avançant
+      seg.appendChild(el("span", { classe: classeSeg }));
+    }
+
+    if (e === INTRO) afficherIntro(contenu);
+    else if (e === QUIZ) afficherQuiz(contenu);
+    else afficherEtape(contenu, e);
+    afficherBoutons();
+  }
+
+  function afficherBoutons() {
+    var e = etat.ecran;
+    var zone = document.getElementById("boutons");
+    zone.textContent = "";
+    var gauche = el("div", { classe: "groupe" }), droite = el("div", { classe: "groupe" });
+
+    if (e === QUIZ) {
+      gauche.appendChild(el("button", { type: "button", texte: "← Revenir aux étapes", clic: function () { aller(N - 1); } }));
+      if (etat.corrige) droite.appendChild(el("button", { type: "button", texte: "Recommencer le questionnaire", clic: function () { etat.reponses = {}; etat.corrige = false; aller(QUIZ); } }));
+      else droite.appendChild(el("button", { type: "button", id: "corriger", classe: "principal", texte: "Corriger", clic: function () { etat.corrige = true; aller(QUIZ); } }));
+    } else {
+      if (e > INTRO) gauche.appendChild(el("button", { type: "button", texte: "← Précédent", clic: function () { aller(e - 1); } }));
+      if (etat.depuisResultats && e !== INTRO) droite.appendChild(el("button", { type: "button", texte: "Retour aux résultats", clic: function () { etat.depuisResultats = false; aller(QUIZ); } }));
+      var libelle = e === INTRO ? "Commencer la visite →" : e === N - 1 ? "Questionnaire →" : "Suivant →";
+      droite.appendChild(el("button", { type: "button", classe: "principal", texte: libelle, clic: function () { aller(e + 1); } }));
+    }
+    zone.appendChild(gauche);
+    if (e !== QUIZ) zone.appendChild(el("span", { classe: "astuce", texte: "Flèches ← → pour naviguer" }));
+    zone.appendChild(droite);
+    majBoutonCorriger();
+  }
+
+  // ---------- Écrans ----------
+
+  function rangeeEtape(i) {
+    var s = V.etapes[i];
+    return el("button", { type: "button", classe: "rangee", clic: function () { if (etat.ecran === QUIZ) revoir(i); else aller(i); } }, [
+      el("span", { classe: "n", texte: "Étape " + (i + 1) }),
+      puce(service(s.fichier)),
+      el("span", { classe: "t", texte: s.titre }),
+      el("span", { classe: "fl", "aria-hidden": "true", texte: "→" })
+    ]);
+  }
+
+  function afficherIntro(c) {
+    var rangees = el("div", { classe: "rangees" });
+    for (var i = 0; i < N; i++) rangees.appendChild(rangeeEtape(i));
+    c.appendChild(el("section", { classe: "carte" }, [
+      el("h2", { texte: "Ce que tu vas voir" }),
+      el("p", { classe: "explication", texte: V.resume }),
+      el("p", { classe: "doux", texte: "Les étapes suivent l'ordre dans lequel le code s'exécute. Pose tes questions dans le chat à tout moment." }),
+      rangees
+    ]));
+  }
+
+  function afficherEtape(c, i) {
+    var s = V.etapes[i];
+    var lang = langage(s.fichier);
+    var carte = el("section", { classe: "carte" });
+
+    carte.appendChild(el("div", { classe: "tete" }, [
+      el("div", { classe: "ligne-fichier" }, [
+        puce(service(s.fichier)),
+        el("span", { classe: "chemin mono", texte: s.fichier + " · lignes " + s.lignes.debut + "–" + s.lignes.fin })
+      ]),
+      el("h2", { texte: s.titre })
+    ]));
+
+    var code = el("div", { classe: "code mono", role: "region", "aria-label": "Extrait de " + s.fichier, tabindex: "0" });
+    // Décalage entre deux lignes visées : la dernière commence à (300 - 120) ms et finit à 300 ms.
+    var nbVisees = s.lignes.fin - s.lignes.debut + 1;
+    var pas = nbVisees > 1 ? (DUREE_BANDE - DUREE_LIGNE) / (nbVisees - 1) : 0;
+    s.extrait.lignes.forEach(function (texte, k) {
+      var num = s.extrait.premiereLigne + k;
+      var vise = num >= s.lignes.debut && num <= s.lignes.fin;
+      var ligne = el("div", { classe: "ligne " + (vise ? "vise" : "contexte") }, [
+        el("span", { classe: "num", texte: String(num) }),
+        colorier(texte, lang)
+      ]);
+      if (vise) ligne.style.animationDelay = Math.round((num - s.lignes.debut) * pas) + "ms";
+      code.appendChild(ligne);
+    });
+    carte.appendChild(code);
+
+    carte.appendChild(el("p", { classe: "explication", texte: s.explication }));
+
+    if (s.exemple && s.exemple.length) {
+      var valeurs = el("div", { classe: "valeurs mono" });
+      s.exemple.forEach(function (x) {
+        valeurs.appendChild(el("span", { classe: "nom", texte: x.nom }));
+        valeurs.appendChild(el("span", { texte: x.valeur }));
+      });
+      carte.appendChild(el("div", { classe: "exemple" }, [el("h3", { texte: "Exemple de valeurs" }), valeurs]));
+    }
+
+    if (s.transition) {
+      var ici = service(s.fichier);
+      var apres = i + 1 < N ? service(V.etapes[i + 1].fichier) : "";
+      var titre = el("div", { classe: "titre" }, [el("span", { texte: "Ensuite" })]);
+      if (ici && apres && ici !== apres) {
+        titre.appendChild(puce(ici));
+        titre.appendChild(svg(ICONE_FLECHE, 16));
+        titre.appendChild(puce(apres));
+      }
+      carte.appendChild(el("div", { classe: "ensuite" }, [titre, el("p", { texte: s.transition })]));
+    }
+    c.appendChild(carte);
+  }
+
+  function afficherQuiz(c) {
+    if (etat.corrige) afficherResultats(c);
+    else c.appendChild(el("section", { classe: "carte" }, [
+      el("h2", { texte: "Questionnaire" }),
+      el("p", { classe: "doux", texte: "Réponds aux " + V.questions.length + " questions, puis clique sur « Corriger » en bas de la page." })
+    ]));
+
+    var liste = el("section", { classe: "rangees" });
+    if (etat.corrige) liste.appendChild(el("h3", { texte: "Correction détaillée" }));
+    V.questions.forEach(function (q, qi) {
+      var fs = el("fieldset", {}, [el("legend", { texte: (qi + 1) + ". " + q.question })]);
+      q.choix.forEach(function (choix, ci) {
+        var input = el("input", { type: "radio", name: "q" + qi, value: String(ci) });
+        if (etat.reponses[qi] === ci) input.checked = true;
+        if (etat.corrige) input.disabled = true;
+        input.addEventListener("change", function () {
+          etat.reponses[qi] = ci;
+          majBoutonCorriger();
+          rejouer(input.parentNode, "pulse");
+        });
+        var classe = "choix", mention = "";
+        if (etat.corrige) {
+          var choisi = etat.reponses[qi] === ci, bon = ci === q.bonneReponse;
+          if (bon && choisi) { classe += " juste"; mention = "Ta réponse · juste"; }
+          else if (bon) { classe += " juste"; mention = "Bonne réponse"; }
+          else if (choisi) { classe += " faux"; mention = "Ta réponse · faux"; }
+          else classe += " attenue";
+        }
+        fs.appendChild(el("label", { classe: classe }, [input, el("span", { texte: choix }), mention ? el("span", { classe: "etat", texte: mention }) : null]));
+      });
+      if (etat.corrige) {
+        var juste = etat.reponses[qi] === q.bonneReponse;
+        var i = etapeParId(q.etape);
+        fs.appendChild(el("p", { classe: "verdict" }, [
+          q.explication + " ",
+          juste ? null : el("button", { type: "button", classe: "lien", texte: "Revoir l'étape " + (i + 1), clic: function () { revoir(i); } })
+        ]));
+      }
+      liste.appendChild(fs);
+    });
+    c.appendChild(liste);
+  }
+
+  function majBoutonCorriger() {
+    var b = document.getElementById("corriger");
+    if (b) b.disabled = Object.keys(etat.reponses).length < V.questions.length;
+  }
+
+  function afficherResultats(c) {
+    var bonnes = 0, aRevoir = [];
+    V.questions.forEach(function (q, qi) {
+      if (etat.reponses[qi] === q.bonneReponse) bonnes++;
+      else { var i = etapeParId(q.etape); if (aRevoir.indexOf(i) < 0) aRevoir.push(i); }
+    });
+    aRevoir.sort(function (a, b) { return a - b; });
+
+    var message = aRevoir.length === 0 ? "Tout est juste. Passe à la question ouverte."
+      : aRevoir.length === 1 ? "Une notion à revoir avant d'expliquer la fonctionnalité."
+      : aRevoir.length + " notions à revoir avant d'expliquer la fonctionnalité.";
+    var carte = el("section", { classe: "carte" }, [
+      el("div", { classe: "score" }, [
+        el("span", { classe: "valeur" }, [String(bonnes), el("span", { classe: "sur", texte: " / " + V.questions.length })]),
+        el("p", { texte: message })
+      ])
+    ]);
+    if (aRevoir.length) {
+      var rangees = el("div", { classe: "rangees" }, [el("h3", { texte: "Étapes à revoir" })]);
+      aRevoir.forEach(function (i) { rangees.appendChild(rangeeEtape(i)); });
+      carte.appendChild(rangees);
+    }
+    c.appendChild(carte);
+
+    var retour = el("span", { classe: "doux", texte: "Colle-la dans le chat de la session, puis réponds sans regarder le code : Claude corrigera." });
+    var copier = el("button", { type: "button", classe: "principal", texte: "Copier la question", clic: function () { copierTexte(V.questionOuverte, retour, copier); } });
+    c.appendChild(el("section", { classe: "carte ensuite-style ouverte" }, [
+      el("h3", { texte: "Dernière étape, dans le chat" }),
+      el("p", { classe: "consigne", texte: V.questionOuverte }),
+      el("div", { classe: "actions" }, [copier, retour])
+    ]));
+  }
+
+  var minuteurCoche = null;
+  function copierTexte(texte, retour, bouton) {
+    function ok() {
+      retour.textContent = "Copiée. Colle-la dans le chat, puis réponds sans regarder le code.";
+      // Coche dans le bouton pendant 1,5 s ; largeur figée pour que le bouton ne change pas de taille.
+      bouton.style.minWidth = bouton.offsetWidth + "px";
+      bouton.textContent = "";
+      bouton.appendChild(el("span", { classe: "coche" }, [svg(ICONE_COCHE, 18), "Copiée"]));
+      clearTimeout(minuteurCoche);
+      minuteurCoche = setTimeout(function () { bouton.textContent = "Copier la question"; }, 1500);
+    }
+    function secours() {
+      // Ancienne méthode, pour les pages ouvertes depuis le disque où l'API presse-papiers est parfois refusée.
+      var zone = el("textarea", { readonly: "", style: "position:fixed;opacity:0" });
+      zone.value = texte;
+      document.body.appendChild(zone);
+      zone.select();
+      var reussi = false;
+      try { reussi = document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(zone);
+      if (reussi) ok(); else retour.textContent = "Copie impossible ici : sélectionne la question à la main.";
+    }
+    try {
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(texte).then(ok, secours);
+      else secours();
+    } catch (e) { secours(); }
+  }
+
+  // Flèches du clavier (sauf dans le questionnaire, où elles servent à choisir).
+  document.addEventListener("keydown", function (ev) {
+    if (etat.ecran === QUIZ || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+    if (ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)) return;
+    if (ev.key === "ArrowRight") aller(etat.ecran + 1);
+    else if (ev.key === "ArrowLeft") aller(etat.ecran - 1);
+  });
+
+  majBoutonTheme();
+  afficher();
+})();
+</script>
+</body>
+</html>
