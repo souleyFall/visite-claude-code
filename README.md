@@ -1,5 +1,8 @@
 # /visite : une visite guidée de ton code
 
+**/visite** is a [Claude Code](https://code.claude.com) skill that turns any feature of your codebase into a guided, step-by-step tour: verified code excerpts in execution order, beginner-friendly explanations, and a quiz to check you understood.
+*The documentation below is in French.*
+
 ![Démonstration : une visite de la commande d'une pizza, étape par étape, puis le questionnaire](docs/demo.gif)
 
 `/visite` est une **skill pour [Claude Code](https://code.claude.com)**. Tu lui donnes le nom d'une fonctionnalité de ton projet, et elle en fabrique une visite guidée : une page web qui suit le code **dans l'ordre où il s'exécute**, étape par étape, puis vérifie avec un questionnaire que tu sais l'expliquer.
